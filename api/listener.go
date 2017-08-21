@@ -15,30 +15,11 @@ import (
 // 5 = debug
 // 6 = trace
 
-/*
-func authenticateHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tokens, ok := r.Header["Authorization"]
-		if ok && len(tokens) >= 1 {
-			token = tokens[0]
-			token = strings.TrimPrefix(token, "Bearer ")
-		}
-
-		if token == "" {
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-			return
-		}
-
-
-	})
-}
- */
-
 // Listen sets up an HTTP server and listens on given interface and port (ex: "0.0.0.0:8080")
 func Listen(listenOn string) {
 	router := mux.NewRouter()
 
-	ph := &PolicyHandler{"/tmp/policy.d/"}
+	ph := &PolicyHandler{"/tmp/policy.d/", "blerf"}
 
 	router.HandleFunc("/status", ph.statusHandler).Methods("GET", "HEAD", "OPTIONS")
 	router.HandleFunc("/policy/{id:[0-9A-Za-z.-]+}", ph.policyHandler).Methods("GET", "HEAD", "OPTIONS", "POST", "DELETE")
@@ -47,7 +28,8 @@ func Listen(listenOn string) {
 
 	glog.Infof("Listening on port: %v", listenOn)
 
-	recoverymiddleware := handlers.RecoveryHandler()(router)
+	authmiddleware := ph.authenticateHandler(router)
+	recoverymiddleware := handlers.RecoveryHandler()(authmiddleware)
 
 	// will run in a greenthread, the function this is in will return
 	go func() {

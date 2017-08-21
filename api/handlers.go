@@ -19,6 +19,7 @@ import (
 
 type PolicyHandler struct {
 	PolicyDir string
+	SecretToken string
 }
 
 /* Status */
@@ -336,4 +337,30 @@ func (ph *PolicyHandler) getPolicyList() (*policyList, error) {
 func (ph *PolicyHandler) readPolicy(pname string) (*policy.Policy, error) {
 	ppath := ph.policyNameToPath(pname)
 	return policy.ReadPolicyFile(ppath)
+}
+
+func (ph *PolicyHandler) authenticateHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := ""
+
+		tokens, ok := r.Header["Authorization"]
+
+		if ok && len(tokens) >= 1 {
+			token = tokens[0]
+			token = strings.TrimPrefix(token, "Bearer ")
+		}
+
+		if token == "" {
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		}
+
+		if token != ph.SecretToken {
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+
+		}
+
+		next.ServeHTTP(w,r)
+	})
 }
