@@ -8,16 +8,18 @@ import (
 )
 
 func main() {
+	policyDir := flag.String("policydir", "", "the directory containing policy.d files")
+
 	flag.Parse()
+
+	glog.Infof("Using '%s' for policy.d directory", *policyDir)
 
 	listen := "0.0.0.0:8091"
 
-	glog.Infof("Passing %v to HTTP API server", listen)
 	api.Listen(listen)
 
 	// report forever
 	for {
-		glog.Infof("Some stats reporting...")
 		time.Sleep(10 * time.Second)
 	}
 }
