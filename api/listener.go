@@ -16,10 +16,8 @@ import (
 // 6 = trace
 
 // Listen sets up an HTTP server and listens on given interface and port (ex: "0.0.0.0:8080")
-func Listen(listenOn string) {
+func Listen(listenOn string, ph *PolicyHandlerConfig) {
 	router := mux.NewRouter()
-
-	ph := &PolicyHandler{"/tmp/policy.d/", "blerf"}
 
 	router.HandleFunc("/status", ph.statusHandler).Methods("GET", "HEAD", "OPTIONS")
 	router.HandleFunc("/policy/{id:[0-9A-Za-z.-]+}", ph.policyHandler).Methods("GET", "HEAD", "OPTIONS", "POST", "DELETE")

@@ -17,13 +17,17 @@ import (
 	"syscall"
 )
 
-type PolicyHandler struct {
+type PolicyHandlerConfig struct {
+	ListenAddr string
 	PolicyDir string
 	SecretToken string
+	ServerKeyPath string
+	ServerCertPath string
+	NoSec bool
 }
 
 /* Status */
-func (ph *PolicyHandler) statusGET(w http.ResponseWriter, r *http.Request) {
+func (ph *PolicyHandlerConfig) statusGET(w http.ResponseWriter, r *http.Request) {
 	diskpols, err := ph.getPolicyNameList()
 	if err != nil {
 		wrapper := make(map[string]interface{}, 0)
@@ -39,7 +43,7 @@ func (ph *PolicyHandler) statusGET(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (ph *PolicyHandler) statusHandler(w http.ResponseWriter, r *http.Request) {
+func (ph *PolicyHandlerConfig) statusHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "HEAD":
 		glog.V(5).Infof("HEAD: %v", r)
@@ -57,7 +61,7 @@ func (ph *PolicyHandler) statusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 /* Policy Names  */
-func (ph *PolicyHandler) policiesNamesHandler(w http.ResponseWriter, r *http.Request) {
+func (ph *PolicyHandlerConfig) policiesNamesHandler(w http.ResponseWriter, r *http.Request) {
 	glog.V(5).Infof("policiesnamesapi: %v", r)
 
 	switch r.Method {
@@ -82,7 +86,7 @@ func (ph *PolicyHandler) policiesNamesHandler(w http.ResponseWriter, r *http.Req
 }
 
 /* Policies */
-func (ph *PolicyHandler) policiesGET(w http.ResponseWriter, r *http.Request) {
+func (ph *PolicyHandlerConfig) policiesGET(w http.ResponseWriter, r *http.Request) {
 	pl, err := ph.getPolicyList()
 
 	if err != nil {
@@ -92,7 +96,7 @@ func (ph *PolicyHandler) policiesGET(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (ph *PolicyHandler) policiesPOST(w http.ResponseWriter, r *http.Request) {
+func (ph *PolicyHandlerConfig) policiesPOST(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		glog.V(5).Infof("Problem reading request body")
@@ -115,7 +119,7 @@ func (ph *PolicyHandler) policiesPOST(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (ph *PolicyHandler) policiesHandler(w http.ResponseWriter, r *http.Request) {
+func (ph *PolicyHandlerConfig) policiesHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "HEAD":
 		glog.V(5).Infof("HEAD: %v", r)
@@ -136,11 +140,10 @@ func (ph *PolicyHandler) policiesHandler(w http.ResponseWriter, r *http.Request)
 }
 
 /* Policy */
-func (ph *PolicyHandler) policyGET(w http.ResponseWriter, r *http.Request, rv map[string]string) {
+func (ph *PolicyHandlerConfig) policyGET(w http.ResponseWriter, r *http.Request, rv map[string]string) {
 	if id, exists := rv["id"]; !exists {
 		w.WriteHeader(http.StatusBadRequest)
 	} else {
-		glog.V(5).Infof("Some id: %s", id)
 		pol, err := ph.readPolicy(id)
 		if err == nil {
 			writeResponse(w, pol, http.StatusOK)
@@ -150,7 +153,7 @@ func (ph *PolicyHandler) policyGET(w http.ResponseWriter, r *http.Request, rv ma
 	}
 }
 
-func (ph *PolicyHandler) policyPOST(w http.ResponseWriter, r *http.Request, rv map[string]string) {
+func (ph *PolicyHandlerConfig) policyPOST(w http.ResponseWriter, r *http.Request, rv map[string]string) {
 	if id, exists := rv["id"]; !exists {
 		w.WriteHeader(http.StatusBadRequest)
 	} else {
@@ -177,7 +180,7 @@ func (ph *PolicyHandler) policyPOST(w http.ResponseWriter, r *http.Request, rv m
 	}
 }
 
-func (ph *PolicyHandler) policyDELETE(w http.ResponseWriter, r *http.Request, rv map[string]string) {
+func (ph *PolicyHandlerConfig) policyDELETE(w http.ResponseWriter, r *http.Request, rv map[string]string) {
 	if id, exists := rv["id"]; !exists {
 		w.WriteHeader(http.StatusBadRequest)
 	} else {
@@ -191,7 +194,7 @@ func (ph *PolicyHandler) policyDELETE(w http.ResponseWriter, r *http.Request, rv
 	}
 }
 
-func (ph *PolicyHandler) policyHandler(w http.ResponseWriter, r *http.Request) {
+func (ph *PolicyHandlerConfig) policyHandler(w http.ResponseWriter, r *http.Request) {
 	rv := mux.Vars(r)
 
 	switch r.Method {
@@ -217,7 +220,7 @@ func (ph *PolicyHandler) policyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 /* Util */
-func (ph *PolicyHandler) deletePolicy(pname string)(error) {
+func (ph *PolicyHandlerConfig) deletePolicy(pname string)(error) {
 	ppath := ph.policyNameToPath(pname)
 	err := syscall.Unlink(ppath)
 	if err != nil && os.IsNotExist(err) {
@@ -228,17 +231,17 @@ func (ph *PolicyHandler) deletePolicy(pname string)(error) {
 	return nil
 }
 
-func (ph *PolicyHandler) policyPathToName(ppath string) (string) {
+func (ph *PolicyHandlerConfig) policyPathToName(ppath string) (string) {
 	basename := path.Base(ppath)
 	return strings.TrimSuffix(basename, ".policy")
 }
 
-func (ph *PolicyHandler) policyNameToPath(pname string) (string) {
+func (ph *PolicyHandlerConfig) policyNameToPath(pname string) (string) {
 	pname = strings.TrimSuffix(pname, ".policy")
 	return fmt.Sprintf("%s/%s.policy", ph.PolicyDir, pname)
 }
 
-func (ph *PolicyHandler) setPolicies(newpol *policyList)(error) {
+func (ph *PolicyHandlerConfig) setPolicies(newpol *policyList)(error) {
 	/* get list of policies on disk */
 	diskpols, err := ph.getPolicyNameList()
 	sort.Strings(diskpols.Policies)
@@ -290,7 +293,7 @@ func (ph *PolicyHandler) setPolicies(newpol *policyList)(error) {
 	return nil
 }
 
-func (ph *PolicyHandler) getPolicyNameList() (*policyNameList, error) {
+func (ph *PolicyHandlerConfig) getPolicyNameList() (*policyNameList, error) {
 	pl := policyNameListFactory()
 	files, err := ioutil.ReadDir(ph.PolicyDir)
 	if err == nil {
@@ -306,7 +309,7 @@ func (ph *PolicyHandler) getPolicyNameList() (*policyNameList, error) {
 	return pl, nil
 }
 
-func (ph *PolicyHandler) writePolicy(pname string, pol policy.Policy)(error) {
+func (ph *PolicyHandlerConfig) writePolicy(pname string, pol policy.Policy)(error) {
 	ppath := ph.policyNameToPath(pname)
 	jbod, err := json.Marshal(pol)
 	if err != nil {
@@ -316,7 +319,7 @@ func (ph *PolicyHandler) writePolicy(pname string, pol policy.Policy)(error) {
 	return err
 }
 
-func (ph *PolicyHandler) getPolicyList() (*policyList, error) {
+func (ph *PolicyHandlerConfig) getPolicyList() (*policyList, error) {
 	pl := *policyListFactory()
 
 	files, _ := ioutil.ReadDir(ph.PolicyDir)
@@ -334,33 +337,44 @@ func (ph *PolicyHandler) getPolicyList() (*policyList, error) {
 	return &pl, nil
 }
 
-func (ph *PolicyHandler) readPolicy(pname string) (*policy.Policy, error) {
+func (ph *PolicyHandlerConfig) readPolicy(pname string) (*policy.Policy, error) {
 	ppath := ph.policyNameToPath(pname)
+	glog.V(5).Infof("policy id '%s' to path '%s'", pname, ppath)
 	return policy.ReadPolicyFile(ppath)
 }
 
-func (ph *PolicyHandler) authenticateHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := ""
-
-		tokens, ok := r.Header["Authorization"]
-
-		if ok && len(tokens) >= 1 {
-			token = tokens[0]
-			token = strings.TrimPrefix(token, "Bearer ")
+func (ph *PolicyHandlerConfig) authenticateHandler(next http.Handler) http.Handler {
+	if ph.NoSec {
+		glog.V(5).Info("WARNING: bypassing no-op authentication handler middleware because NoSec is configured")
+		return next
+	} else {
+		if len(ph.SecretToken) <= 10 {
+			glog.V(5).Info("WARNING: bearer token is very short" )
+			os.Stderr.WriteString("WARNING: bearer token is very short")
 		}
 
-		if token == "" {
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-			return
-		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := ""
 
-		if token != ph.SecretToken {
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-			return
+			tokens, ok := r.Header["Authorization"]
 
-		}
+			if ok && len(tokens) >= 1 {
+				token = tokens[0]
+				token = strings.TrimPrefix(token, "Bearer ")
+			}
 
-		next.ServeHTTP(w,r)
-	})
+			if token == "" {
+				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				return
+			}
+
+			if token != ph.SecretToken {
+				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				return
+
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
