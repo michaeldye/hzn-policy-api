@@ -254,7 +254,7 @@ func (ph *PolicyHandlerConfig) setPolicies(newpol *policyList)(error) {
 	for pname, pol := range newpol.Policies {
 		if strInList(diskpols.Policies, pname) {
 			/* compare existing policy to the new one */
-			oldpol, err := policy.ReadPolicyFile(fmt.Sprintf("/tmp/policy.d/%s.policy", pname))
+			oldpol, err := ph.readPolicy(pname)
 			if err != nil {
 				deferredErr = true
 			} else {
