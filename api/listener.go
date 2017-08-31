@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/handlers"
+	"github.com/open-horizon/anax/policy"
 	"net/http"
 )
 
@@ -14,30 +16,52 @@ import (
 // 6 = trace
 
 // Listen sets up an HTTP server and listens on given interface and port (ex: "0.0.0.0:8080")
-func Listen(listenOn string) {
+func Listen(listenOn string, ph *PolicyHandlerConfig) {
 	router := mux.NewRouter()
 
-	router.HandleFunc("/status", statusAPI).Methods("GET", "HEAD", "OPTIONS")
+	router.HandleFunc("/status", ph.statusHandler).Methods("GET", "HEAD", "OPTIONS")
+	router.HandleFunc("/policy/{id:[0-9A-Za-z.-]+}", ph.policyHandler).Methods("GET", "HEAD", "OPTIONS", "POST", "DELETE")
+	router.HandleFunc("/policies", ph.policiesHandler).Methods("GET", "HEAD", "OPTIONS", "POST")
+	router.HandleFunc("/policies/names", ph.policiesNamesHandler).Methods("GET", "HEAD", "OPTIONS")
 
-	glog.Infof("Gonna listen on port: %v", listenOn)
+	glog.Infof("Listening on port: %v", listenOn)
+
+	authmiddleware := ph.authenticateHandler(router)
+	recoverymiddleware := handlers.RecoveryHandler()(authmiddleware)
 
 	// will run in a greenthread, the function this is in will return
 	go func() {
-		http.ListenAndServe(listenOn, router)
+		http.ListenAndServe(listenOn, recoverymiddleware)
 	}()
 }
 
 // status is an API server status return type
 type status struct {
-	Online    bool `json:"online"`
-	FileCount int  `json:"file_count"`
+	Online      bool `json:"online"`
+	PolicyCount int  `json:"policy_count"`
 }
 
-func newStatus(fileCount int) *status {
+type policyNameList struct {
+	Policies []string `json:"policies"`
+}
+
+type policyList struct {
+	Policies map[string]policy.Policy `json:"policies"`
+}
+
+func statusFactory(online bool, policyCount int) *status {
 	return &status{
-		Online:    true,
-		FileCount: fileCount,
+		Online:      online,
+		PolicyCount: policyCount,
 	}
+}
+
+func policyNameListFactory() (*policyNameList) {
+	return &policyNameList{Policies: []string{}}
+}
+
+func policyListFactory() (*policyList) {
+	return &policyList{Policies: map[string]policy.Policy{}}
 }
 
 func writeResponse(writer http.ResponseWriter, outModel interface{}, successStatusCode int) {
@@ -58,23 +82,3 @@ func writeResponse(writer http.ResponseWriter, outModel interface{}, successStat
 	}
 }
 
-func statusAPI(w http.ResponseWriter, r *http.Request) {
-
-	switch r.Method {
-	case "HEAD":
-		glog.V(5).Infof("HEAD: %v", r)
-	case "OPTIONS":
-		glog.V(5).Infof("OPTIONS: %v", r)
-		w.Header().Set("Allow", "HEAD, OPTIONS, GET")
-		w.WriteHeader(http.StatusOK)
-	case "GET":
-		glog.V(5).Infof("GET: %v", r)
-
-		wrapper := make(map[string]interface{}, 0)
-		wrapper["status"] = newStatus(66)
-
-		writeResponse(w, wrapper, http.StatusOK)
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}
-}

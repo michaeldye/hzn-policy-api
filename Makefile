@@ -18,7 +18,7 @@ endif
 all: $(EXECUTABLE)
 
 # will always run b/c deps target is PHONY
-$(EXECUTABLE): $(shell find . -name '*.go' -not -path './vendor/*') proto
+$(EXECUTABLE): $(shell find . -name '*.go' -not -path './vendor/*')
 	$(COMPILE_ARGS) go build -o $(EXECUTABLE)
 
 clean:

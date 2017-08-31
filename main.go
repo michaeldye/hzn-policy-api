@@ -3,21 +3,46 @@ package main
 import (
 	"flag"
 	"github.com/golang/glog"
-	"github.com/michaeldye/hzn-policy-api/api"
+	"os"
 	"time"
+	"github.com/BurntSushi/toml"
+	"github.com/michaeldye/hzn-policy-api/api"
 )
 
+
+func parseConfig(configFile string)(*api.PolicyHandlerConfig) {
+	config := &api.PolicyHandlerConfig{"0.0.0.0:8091","/etc/horizon/anax/policy.d/", "", "server.key", "server.crt", false}
+	if _, err := os.Stat(configFile); err != nil {
+		glog.Fatalf("Config file missing at '%s'", configFile)
+	}
+	if _, err := toml.DecodeFile(configFile, &config); err != nil {
+		glog.Fatal(err)
+	}
+	if config.SecretToken == "" {
+		glog.Fatal("SecretToken must be non-empty in config")
+	}
+	if config.NoSec == true {
+		glog.V(5).Info("WARNING: security disabled" )
+		os.Stderr.WriteString("WARNING: security disabled\n")
+	}
+
+	return config
+}
+
+
 func main() {
+	configfile := flag.String("configfile", "config.toml", "TOML formatted configuration file")
+
 	flag.Parse()
 
-	listen := "0.0.0.0:8091"
+	ph := parseConfig(*configfile)
 
-	glog.Infof("Passing %v to HTTP API server", listen)
-	api.Listen(listen)
+	listen := ph.ListenAddr
 
-	// report forever
+	api.Listen(listen, ph)
+
+	// sleep forever
 	for {
-		glog.Infof("Some stats reporting...")
 		time.Sleep(10 * time.Second)
 	}
 }
